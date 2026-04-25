@@ -101,9 +101,9 @@ openai_client = OpenAI(api_key=config.OPENAI_API_KEY)
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "company_name": config.COMPANY_NAME,
             "company_email": config.COMPANY_EMAIL,
             "industries": config.INDUSTRIES,
