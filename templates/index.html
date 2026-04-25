@@ -8,8 +8,8 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">{{ company_name }}</div>
-    <div class="brand-sub">{{ company_email }}</div>
+    <a class="brand" href="https://kalopetech.com" target="_blank" rel="noopener">{{ company_name }}</a>
+    <a class="brand-sub" href="mailto:{{ company_email }}">{{ company_email }}</a>
   </header>
 
   <main class="container" id="mainContainer">
@@ -73,10 +73,22 @@
       <div class="preview-header">
         <h2 id="previewTitle">Proposal Preview</h2>
         <div class="actions">
-          <button id="editBtn" class="secondary">Edit</button>
-          <button id="refreshPdfBtn" class="secondary">Refresh PDF</button>
-          <button id="downloadBtn">Download PDF</button>
-          <button id="backBtn" class="secondary">New Proposal</button>
+          <button id="editBtn" class="secondary">
+            <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            <span>Edit</span>
+          </button>
+          <button id="refreshPdfBtn" class="secondary">
+            <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 5.64 5.64L1 10"/></svg>
+            <span>Refresh PDF</span>
+          </button>
+          <button id="downloadBtn">
+            <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Download PDF</span>
+          </button>
+          <button id="backBtn" class="secondary">
+            <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>New Proposal</span>
+          </button>
         </div>
       </div>
       <div class="edit-hint hidden" id="editHint">Editing — click any text to change it, use <strong>+ Add</strong> / <strong>×</strong> buttons to add or remove items, then press <strong>Save Changes</strong> (PDF on the right auto-updates).</div>
