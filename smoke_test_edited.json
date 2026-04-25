@@ -1,0 +1,262 @@
+{
+  "project_title": "Learning Management System (LMS) - Version 1.0",
+  "project_title_short": "LMS",
+  "introduction": "Kalope Tech appreciates the opportunity to collaborate with Demo Academy on the development of a comprehensive Learning Management System (LMS). This document outlines our proposal to deliver a robust platform tailored to the educational needs of your institution.\n\nThe LMS will support video lessons, quizzes, progress tracking, certificates, and payment processing, catering to three distinct user roles: students, instructors, and administrators. Our goal is to enhance the learning experience and streamline the educational management process.",
+  "executive_summary": "Kalope Tech will deliver a fully functional Learning Management System that empowers Demo Academy to provide engaging educational content and track student progress effectively, ultimately driving higher student satisfaction and improved learning outcomes.",
+  "scope_modules": [
+    {
+      "module_code": "2.1",
+      "module_name": "Authentication Module",
+      "screens": [
+        {
+          "code": "2.1.1",
+          "name": "Login Screen",
+          "description": "User login interface for students and instructors."
+        },
+        {
+          "code": "2.1.2",
+          "name": "Registration Screen",
+          "description": "Sign-up interface for new users."
+        },
+        {
+          "code": "2.1.3",
+          "name": "Password Recovery",
+          "description": "Password reset functionality."
+        }
+      ]
+    },
+    {
+      "module_code": "2.2",
+      "module_name": "Course Management",
+      "screens": [
+        {
+          "code": "2.2.1",
+          "name": "Create Course",
+          "description": "Interface for instructors to create courses."
+        },
+        {
+          "code": "2.2.2",
+          "name": "Edit Course",
+          "description": "Functionality to update course details."
+        },
+        {
+          "code": "2.2.3",
+          "name": "Course Catalog",
+          "description": "List of available courses for students."
+        }
+      ]
+    },
+    {
+      "module_code": "2.3",
+      "module_name": "Learning Activities",
+      "screens": [
+        {
+          "code": "2.3.1",
+          "name": "Video Lessons",
+          "description": "Interface for students to view video lessons."
+        },
+        {
+          "code": "2.3.2",
+          "name": "Quizzes",
+          "description": "Functionality for students to take quizzes."
+        },
+        {
+          "code": "2.3.3",
+          "name": "Progress Tracking",
+          "description": "Dashboard for students to track their progress."
+        }
+      ]
+    },
+    {
+      "module_code": "2.4",
+      "module_name": "Certification Module",
+      "screens": [
+        {
+          "code": "2.4.1",
+          "name": "Generate Certificate",
+          "description": "Functionality to create certificates for completed courses."
+        },
+        {
+          "code": "2.4.2",
+          "name": "View Certificates",
+          "description": "Interface for students to view earned certificates."
+        }
+      ]
+    },
+    {
+      "module_code": "2.5",
+      "module_name": "Payment Processing",
+      "screens": [
+        {
+          "code": "2.5.1",
+          "name": "Payment Gateway Integration",
+          "description": "Interface for processing payments."
+        },
+        {
+          "code": "2.5.2",
+          "name": "Transaction History",
+          "description": "View past transactions for students."
+        }
+      ]
+    },
+    {
+      "module_code": "2.6",
+      "module_name": "Admin Dashboard",
+      "screens": [
+        {
+          "code": "2.6.1",
+          "name": "User Management",
+          "description": "Admin interface for managing users."
+        },
+        {
+          "code": "2.6.2",
+          "name": "Reports",
+          "description": "Generate reports on course performance and user engagement."
+        }
+      ]
+    }
+  ],
+  "additional_features": [
+    "Mobile-friendly design for easy access",
+    "Gamification elements to enhance engagement",
+    "Integration with third-party educational tools",
+    "Advanced analytics for performance tracking"
+  ],
+  "technology_stack": [
+    {
+      "layer": "Frontend",
+      "technology": "React, HTML5, CSS3, JavaScript"
+    },
+    {
+      "layer": "Backend",
+      "technology": "Node.js, Express"
+    },
+    {
+      "layer": "Database",
+      "technology": "MongoDB"
+    },
+    {
+      "layer": "Cache",
+      "technology": "Redis"
+    },
+    {
+      "layer": "Authentication",
+      "technology": "JWT, OAuth"
+    },
+    {
+      "layer": "File Storage",
+      "technology": "AWS S3"
+    },
+    {
+      "layer": "Payments",
+      "technology": "Stripe, PayPal"
+    },
+    {
+      "layer": "Hosting",
+      "technology": "AWS, Heroku"
+    },
+    {
+      "layer": "CI/CD",
+      "technology": "GitHub Actions, Jenkins"
+    }
+  ],
+  "timeline": [
+    {
+      "phase": "Phase 1 - UI/UX Design",
+      "description": "Designing user interfaces and user experience flow.",
+      "duration_days": 15
+    },
+    {
+      "phase": "Phase 2 - Development",
+      "description": "Building the LMS core functionalities.",
+      "duration_days": 70
+    },
+    {
+      "phase": "Phase 3 - Testing",
+      "description": "Conducting thorough testing of all features.",
+      "duration_days": 20
+    },
+    {
+      "phase": "Phase 4 - Deployment",
+      "description": "Deploying the LMS on the production server.",
+      "duration_days": 10
+    },
+    {
+      "phase": "Phase 5 - Training and Support",
+      "description": "Providing training for users and ongoing support.",
+      "duration_days": 5
+    }
+  ],
+  "total_duration_label": "120 Days",
+  "total_duration_note": "Post-launch maintenance & support to be agreed separately.",
+  "project_cost": {
+    "amount_display": "\u20b99,50,000",
+    "amount_words": "Eight Lakhs Ninety Thousand INR",
+    "description": "This price covers complete design, development, testing, and deployment. Post-launch maintenance will be scoped separately."
+  },
+  "recurring_costs": {
+    "note": "These are client-borne infrastructure costs.",
+    "items": [
+      {
+        "service": "Hosting (AWS)",
+        "monthly_cost": "$100"
+      },
+      {
+        "service": "Database Backup",
+        "monthly_cost": "$50"
+      },
+      {
+        "service": "Content Delivery Network",
+        "monthly_cost": "$30"
+      },
+      {
+        "service": "Monitoring and Analytics",
+        "monthly_cost": "$20"
+      }
+    ],
+    "estimated_total": "~$300 / month"
+  },
+  "deliverables": [
+    "EDITED: Deployed LMS platform",
+    "User manuals for students and instructors",
+    "Training materials for admin staff",
+    "Source code repository",
+    "Deployment documentation",
+    "Maintenance plan"
+  ],
+  "terms_and_conditions": [
+    {
+      "label": "Scope Changes",
+      "text": "EDITED T&C text here."
+    },
+    {
+      "label": "Intellectual Property",
+      "text": "Full ownership of the codebase and all assets is transferred to the client upon receipt of final payment."
+    },
+    {
+      "label": "Confidentiality",
+      "text": "All information related to this project will be kept confidential."
+    },
+    {
+      "label": "Timeline",
+      "text": "Timelines are estimates and may be adjusted based on project evolution."
+    },
+    {
+      "label": "Warranty",
+      "text": "A warranty period of 6 months will be provided for bug fixes."
+    }
+  ],
+  "closing_message": "Thank you for your trust. We look forward to building something great together.",
+  "_meta": {
+    "client_name": "EDITED Demo Academy",
+    "industry": "Education",
+    "timeline_days": 120,
+    "budget": "890000",
+    "currency": "INR",
+    "company_name": "Kalope Tech",
+    "company_email": "kalopetechservices@gmail.com",
+    "prepared_by": "Sahil Saxena",
+    "validity_days": 30,
+    "date": "April 24, 2026"
+  }
+}

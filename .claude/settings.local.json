@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload)",
+      "Bash(python -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"up: %{http_code}\\\\n\" http://127.0.0.1:8000/)",
+      "Bash(curl -s http://127.0.0.1:8000/)",
+      "Bash(curl -s -X POST http://127.0.0.1:8000/pdf -H 'Content-Type: application/json' --data-binary @smoke_test.json -o smoke_test.pdf -w 'pdf: %{http_code} size=%{size_download}\\\\n')"
+    ]
+  }
+}

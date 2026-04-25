@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page {
+    size: A4;
+    margin: 2cm 1.8cm 2.2cm 1.8cm;
+    @frame footer {
+      -pdf-frame-content: footerContent;
+      bottom: 0.9cm;
+      margin-left: 1.8cm;
+      margin-right: 1.8cm;
+      height: 0.7cm;
+    }
+  }
+  body { font-family: "{{ font_family }}", Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #222; line-height: 1.5; }
+
+  .accent-bar { background-color: #14767a; height: 10pt; margin-bottom: 20pt; }
+
+  .title {
+    color: #0a2540;
+    font-size: 26pt;
+    font-weight: bold;
+    margin: 0 0 4pt 0;
+    letter-spacing: 0.3pt;
+  }
+  .subtitle {
+    color: #14767a;
+    font-size: 15pt;
+    font-weight: bold;
+    margin: 0 0 18pt 0;
+  }
+
+  .meta-table { width: 100%; margin: 6pt 0 20pt 0; font-size: 10.5pt; }
+  .meta-table td { padding: 4pt 6pt; border: none; }
+  .meta-table .meta-label { color: #14767a; font-weight: bold; width: 28%; }
+  .meta-table .meta-value { color: #222; }
+
+  .navy-divider {
+    background-color: #1e3a5f;
+    height: 12pt;
+    margin: 16pt 0 14pt 0;
+  }
+
+  h2 {
+    background-color: #eef2f7;
+    color: #14767a;
+    font-size: 13pt;
+    font-weight: bold;
+    padding: 6pt 10pt;
+    margin: 16pt 0 8pt 0;
+    border-left: 3pt solid #14767a;
+  }
+  h3 {
+    color: #14767a;
+    font-size: 11.5pt;
+    font-weight: bold;
+    margin: 12pt 0 6pt 0;
+  }
+
+  p { line-height: 1.55; margin: 6pt 0; }
+  ul, ol { line-height: 1.55; margin: 6pt 0 8pt 18pt; }
+  li { margin-bottom: 3pt; }
+
+  h2, h3, h4 { page-break-after: avoid; -pdf-keep-with-next: true; }
+  tr { page-break-inside: avoid; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 6pt 0 10pt 0;
+    font-size: 9.5pt;
+  }
+  th {
+    background-color: #1e3a5f;
+    color: #fff;
+    padding: 5pt 7pt;
+    text-align: left;
+    font-weight: bold;
+  }
+  td {
+    padding: 5pt 7pt;
+    border-bottom: 1px solid #e5e8ec;
+    vertical-align: top;
+  }
+  tr.alt td { background-color: #f8fafc; }
+  tr.total-row td { background-color: #eef2f7; font-weight: bold; }
+
+  .cost-box {
+    background-color: #f5f7fa;
+    border-left: 4pt solid #14767a;
+    padding: 14pt 18pt;
+    margin: 6pt 0 8pt 0;
+    text-align: center;
+  }
+  .cost-big {
+    color: #0a2540;
+    font-size: 24pt;
+    font-weight: bold;
+    letter-spacing: 0.5pt;
+  }
+  .cost-words { color: #667085; font-size: 10.5pt; margin-top: 3pt; }
+
+  .total-duration {
+    margin: 6pt 0 0 0;
+    font-size: 10.5pt;
+  }
+  .total-duration strong { color: #0a2540; }
+  .total-duration em { color: #14767a; font-style: italic; }
+
+  .closing-banner {
+    background-color: #1e3a5f;
+    color: #fff;
+    padding: 12pt 14pt;
+    text-align: center;
+    font-weight: bold;
+    margin-top: 18pt;
+    font-size: 11pt;
+  }
+  .signature {
+    text-align: center;
+    color: #14767a;
+    font-size: 10pt;
+    margin-top: 6pt;
+  }
+
+  .footer { font-size: 8pt; color: #888; text-align: center; }
+  .tc-item { margin: 6pt 0; }
+  .tc-item strong { color: #0a2540; }
+</style>
+</head>
+<body>
+
+<div id="footerContent" class="footer">
+  {{ meta.company_name }} &middot; {{ meta.company_email }} &middot; {{ meta.date }}
+</div>
+
+<div class="accent-bar"></div>
+
+<div class="title">PROJECT PROPOSAL</div>
+<div class="subtitle">{{ p.project_title }}</div>
+
+<table class="meta-table">
+  <tr>
+    <td class="meta-label">Prepared by</td>
+    <td class="meta-value">{{ meta.prepared_by }}</td>
+  </tr>
+  <tr>
+    <td class="meta-label">Email</td>
+    <td class="meta-value">{{ meta.company_email }}</td>
+  </tr>
+  <tr>
+    <td class="meta-label">Date</td>
+    <td class="meta-value">{{ meta.date }}</td>
+  </tr>
+  <tr>
+    <td class="meta-label">Prepared for</td>
+    <td class="meta-value">{{ meta.client_name }}</td>
+  </tr>
+</table>
+
+<div class="navy-divider"></div>
+
+<h2>1. INTRODUCTION</h2>
+{% for para in (p.introduction or '').split('\n\n') %}
+  {% if para.strip() %}<p>{{ para.strip() }}</p>{% endif %}
+{% endfor %}
+
+<h2>2. EXECUTIVE SUMMARY</h2>
+<p>{{ p.executive_summary }}</p>
+
+<h2>3. PROJECT SCOPE &mdash; {{ p.project_title_short or p.project_title }}</h2>
+
+{% for module in p.scope_modules or [] %}
+  <h3>{{ module.module_code }} {{ module.module_name }}</h3>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Code</th><th>Screen</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      {% for s in module.screens or [] %}
+        <tr {% if loop.index is even %}class="alt"{% endif %}>
+          <td>{{ loop.index }}</td>
+          <td>{{ s.code }}</td>
+          <td>{{ s.name }}</td>
+          <td>{{ s.description }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endfor %}
+
+{% if p.additional_features %}
+  <h3>Additional Features</h3>
+  <ul>
+    {% for f in p.additional_features %}
+      <li>{{ f }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<h2>4. TECHNOLOGY STACK</h2>
+<table>
+  <thead>
+    <tr><th>Layer</th><th>Technology</th></tr>
+  </thead>
+  <tbody>
+    {% for t in p.technology_stack or [] %}
+      <tr {% if loop.index is even %}class="alt"{% endif %}>
+        <td>{{ t.layer }}</td>
+        <td>{{ t.technology }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>5. PROJECT TIMELINE</h2>
+<table>
+  <thead>
+    <tr><th>Phase</th><th>Description</th><th>Duration</th></tr>
+  </thead>
+  <tbody>
+    {% for phase in p.timeline or [] %}
+      <tr {% if loop.index is even %}class="alt"{% endif %}>
+        <td>{{ phase.phase }}</td>
+        <td>{{ phase.description }}</td>
+        <td>{{ phase.duration_days }} Days</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="total-duration">
+  <strong>Total Duration: {{ p.total_duration_label }}</strong>
+  {% if p.total_duration_note %}<em>({{ p.total_duration_note }})</em>{% endif %}
+</p>
+
+<h2>6. PROJECT COST</h2>
+<div class="cost-box">
+  <div class="cost-big">{{ p.project_cost.amount_display }}</div>
+  <div class="cost-words">({{ p.project_cost.amount_words }})</div>
+</div>
+<p>{{ p.project_cost.description }}</p>
+
+<h2>7. RECURRING COSTS (BORNE BY CLIENT)</h2>
+<p>{{ p.recurring_costs.note }}</p>
+<table>
+  <thead>
+    <tr><th>Service</th><th>Est. Monthly Cost</th></tr>
+  </thead>
+  <tbody>
+    {% for r in p.recurring_costs['items'] or [] %}
+      <tr {% if loop.index is even %}class="alt"{% endif %}>
+        <td>{{ r.service }}</td>
+        <td>{{ r.monthly_cost }}</td>
+      </tr>
+    {% endfor %}
+    <tr class="total-row">
+      <td>Estimated Total</td>
+      <td>{{ p.recurring_costs.estimated_total }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>8. DELIVERABLES</h2>
+<ol>
+  {% for item in p.deliverables or [] %}
+    <li>{{ item }}</li>
+  {% endfor %}
+</ol>
+
+<h2>9. TERMS &amp; CONDITIONS</h2>
+{% for t in p.terms_and_conditions or [] %}
+  <p class="tc-item"><strong>{{ t.label }}:</strong> {{ t.text }}</p>
+{% endfor %}
+
+<div class="closing-banner">{{ p.closing_message or 'Thank you for your trust. We look forward to building something great together.' }}</div>
+<div class="signature">{{ meta.prepared_by }} &nbsp;|&nbsp; {{ meta.company_email }}</div>
+
+</body>
+</html>

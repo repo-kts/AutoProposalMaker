@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoProposalMaker · {{ company_name }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">{{ company_name }}</div>
+    <div class="brand-sub">{{ company_email }}</div>
+  </header>
+
+  <main class="container" id="mainContainer">
+    <section class="form-card" id="formCard">
+      <h1>Generate a Proposal</h1>
+      <p class="muted">Fill in the details below. Everything else is written by AI.</p>
+
+      <form id="proposalForm">
+        <label>Client name
+          <input type="text" name="client_name" required placeholder="e.g. Acme Corp">
+        </label>
+
+        <label>Industry
+          <select name="industry" id="industrySelect" required>
+            <option value="" disabled selected>Select industry...</option>
+            {% for ind in industries %}
+              <option value="{{ ind }}">{{ ind }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label id="industryOtherWrap" style="display:none;">Please specify industry
+          <input type="text" name="industry_other" id="industryOther" placeholder="e.g. Agriculture Tech">
+        </label>
+
+        <label>What is the project?
+          <textarea name="project_description" rows="5" required
+            placeholder="Describe what the client wants built or achieved. The more specific you are, the better the proposal."></textarea>
+        </label>
+
+        <div class="row">
+          <label>Tentative timeline (days)
+            <input type="number" name="timeline_days" min="1" required placeholder="e.g. 60">
+          </label>
+
+          <label>Budget
+            <input type="number" name="budget" min="0" step="0.01" required placeholder="e.g. 15000">
+          </label>
+
+          <label>Currency
+            <select name="currency" required>
+              {% for c in currencies %}
+                <option value="{{ c }}" {% if c == "INR" %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <label>Prepared by <span class="optional">(optional — defaults to {{ company_name }})</span>
+          <input type="text" name="prepared_by" placeholder="e.g. Your name">
+        </label>
+
+        <div class="form-footer">
+          <button type="submit" id="generateBtn">Generate Proposal</button>
+          <button type="button" id="clearSavedBtn" class="link-btn" title="Forget the saved prepared-by / currency">Clear saved info</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="preview hidden" id="previewCard">
+      <div class="preview-header">
+        <h2 id="previewTitle">Proposal Preview</h2>
+        <div class="actions">
+          <button id="editBtn" class="secondary">Edit</button>
+          <button id="refreshPdfBtn" class="secondary">Refresh PDF</button>
+          <button id="downloadBtn">Download PDF</button>
+          <button id="backBtn" class="secondary">New Proposal</button>
+        </div>
+      </div>
+      <div class="edit-hint hidden" id="editHint">Editing — click any text to change it, use <strong>+ Add</strong> / <strong>×</strong> buttons to add or remove items, then press <strong>Save Changes</strong> (PDF on the right auto-updates).</div>
+
+      <div class="split-view">
+        <div class="pane pane-left">
+          <div class="pane-label">Editor</div>
+          <div id="previewBody" class="preview-body"></div>
+
+          <div class="add-module-panel hidden" id="addModulePanel">
+        <h3>Add New Scope Module</h3>
+
+        <label>Module name
+          <input type="text" id="newModuleName" placeholder="e.g. Analytics Dashboard">
+        </label>
+
+        <div class="mode-toggle">
+          <label class="mode-option"><input type="radio" name="addMode" value="ai" checked> Generate with AI</label>
+          <label class="mode-option"><input type="radio" name="addMode" value="manual"> Write manually</label>
+        </div>
+
+        <div class="ai-mode" id="aiModeSection">
+          <label>What should this module cover?
+            <textarea id="aiPrompt" rows="3"
+              placeholder="e.g. Reporting dashboard with PDF export, scheduled email reports, and custom date ranges"></textarea>
+          </label>
+          <button id="generateModuleBtn" class="secondary">Generate Screens</button>
+          <div class="ai-loader hidden" id="aiLoader">
+            <div class="spinner small"></div> Generating...
+          </div>
+        </div>
+
+        <div class="manual-mode hidden" id="manualModeSection">
+          <p class="muted small">Add each screen with a short name and description.</p>
+          <div class="manual-screens" id="manualScreensList"></div>
+          <button id="addRowBtn" class="secondary small">+ Add row</button>
+        </div>
+
+        <div class="generated-screens hidden" id="generatedScreens">
+          <p class="small"><strong>Review & edit generated screens:</strong></p>
+          <table class="generated-table">
+            <thead><tr><th>#</th><th>Code</th><th>Screen</th><th>Description</th></tr></thead>
+            <tbody id="generatedScreensBody"></tbody>
+          </table>
+        </div>
+
+        <div class="panel-actions">
+          <button id="cancelModuleBtn" class="secondary">Cancel</button>
+          <button id="saveModuleBtn" disabled>Add to Proposal</button>
+        </div>
+      </div>
+        </div>
+
+        <div class="pane pane-right">
+          <div class="pane-label">
+            <span>Live PDF</span>
+            <span id="pdfStatus" class="pdf-status"></span>
+          </div>
+          <div class="pdf-wrap">
+            <iframe id="pdfFrame" class="pdf-frame" title="PDF Preview"></iframe>
+            <div class="pdf-loading hidden" id="pdfLoading">
+              <div class="spinner small"></div>
+              <span>Rendering PDF...</span>
+            </div>
+            <div class="pdf-empty" id="pdfEmpty">
+              <p>PDF preview will appear here.</p>
+              <button type="button" id="pdfEmptyRefresh" class="secondary small">Generate preview</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id="loader" class="loader hidden">
+      <div class="spinner"></div>
+      <p>Writing your proposal...</p>
+    </div>
+  </main>
+
+  <script>
+    const form = document.getElementById('proposalForm');
+    const industrySelect = document.getElementById('industrySelect');
+    const industryOtherWrap = document.getElementById('industryOtherWrap');
+    const industryOther = document.getElementById('industryOther');
+    const loader = document.getElementById('loader');
+    const formCard = document.getElementById('formCard');
+    const previewCard = document.getElementById('previewCard');
+    const previewBody = document.getElementById('previewBody');
+    const previewTitle = document.getElementById('previewTitle');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const backBtn = document.getElementById('backBtn');
+    const editBtn = document.getElementById('editBtn');
+    const editHint = document.getElementById('editHint');
+    const pdfFrame = document.getElementById('pdfFrame');
+    const pdfLoading = document.getElementById('pdfLoading');
+    const pdfStatus = document.getElementById('pdfStatus');
+    const pdfEmpty = document.getElementById('pdfEmpty');
+    const pdfEmptyRefresh = document.getElementById('pdfEmptyRefresh');
+    const refreshPdfBtn = document.getElementById('refreshPdfBtn');
+    const addModulePanel = document.getElementById('addModulePanel');
+    const newModuleName = document.getElementById('newModuleName');
+    const aiModeSection = document.getElementById('aiModeSection');
+    const manualModeSection = document.getElementById('manualModeSection');
+    const aiPromptEl = document.getElementById('aiPrompt');
+    const generateModuleBtn = document.getElementById('generateModuleBtn');
+    const aiLoader = document.getElementById('aiLoader');
+    const manualScreensList = document.getElementById('manualScreensList');
+    const addRowBtn = document.getElementById('addRowBtn');
+    const generatedScreensDiv = document.getElementById('generatedScreens');
+    const generatedScreensBody = document.getElementById('generatedScreensBody');
+    const cancelModuleBtn = document.getElementById('cancelModuleBtn');
+    const saveModuleBtn = document.getElementById('saveModuleBtn');
+
+    let currentProposal = null;
+    let editing = false;
+    let pendingScreens = [];
+    let currentPdfUrl = null;
+
+    // --- Persistent form defaults (prepared_by + currency) ---
+    const STORAGE_KEY = 'autoproposal.formDefaults.v1';
+    const SAVED_FIELDS = ['prepared_by', 'currency'];
+
+    function loadFormDefaults() {
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+      catch (e) { return; }
+      for (const key of SAVED_FIELDS) {
+        const el = form.elements[key];
+        if (el && saved[key] && !el.value) el.value = saved[key];
+      }
+    }
+
+    function saveFormDefaults() {
+      const fd = new FormData(form);
+      const saved = {};
+      for (const key of SAVED_FIELDS) {
+        const v = (fd.get(key) || '').toString().trim();
+        if (v) saved[key] = v;
+      }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
+      catch (e) {}
+    }
+
+    const clearSavedBtn = document.getElementById('clearSavedBtn');
+    clearSavedBtn.addEventListener('click', () => {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      for (const key of SAVED_FIELDS) {
+        const el = form.elements[key];
+        if (el) el.value = key === 'currency' ? 'INR' : '';
+      }
+      clearSavedBtn.textContent = 'Cleared ✓';
+      setTimeout(() => { clearSavedBtn.textContent = 'Clear saved info'; }, 1500);
+    });
+
+    loadFormDefaults();
+
+    industrySelect.addEventListener('change', () => {
+      const isOther = industrySelect.value === 'Other';
+      industryOtherWrap.style.display = isOther ? 'flex' : 'none';
+      industryOther.required = isOther;
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formCard.classList.add('hidden');
+      loader.classList.remove('hidden');
+
+      const fd = new FormData(form);
+      try {
+        const res = await fetch('/generate', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        currentProposal = data;
+        saveFormDefaults();
+        renderPreview(data);
+        loader.classList.add('hidden');
+        previewCard.classList.remove('hidden');
+        document.getElementById('mainContainer').classList.add('wide');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        refreshPdfPreview();
+      } catch (err) {
+        loader.classList.add('hidden');
+        formCard.classList.remove('hidden');
+        alert('Generation failed: ' + err.message);
+      }
+    });
+
+    editBtn.addEventListener('click', () => {
+      if (!currentProposal) return;
+      editing ? exitEdit() : enterEdit();
+    });
+
+    function enterEdit() {
+      editing = true;
+      previewBody.classList.add('editing');
+      editHint.classList.remove('hidden');
+      applyContentEditable(true);
+      editBtn.textContent = 'Save Changes';
+      editBtn.classList.remove('secondary');
+      downloadBtn.disabled = true;
+    }
+
+    function exitEdit() {
+      commitEdits();
+      applyContentEditable(false);
+      editing = false;
+      previewBody.classList.remove('editing');
+      editHint.classList.add('hidden');
+      editBtn.textContent = 'Edit';
+      editBtn.classList.add('secondary');
+      downloadBtn.disabled = false;
+      addModulePanel.classList.add('hidden');
+      renderPreview(currentProposal);
+      refreshPdfPreview();
+    }
+
+    async function refreshPdfPreview() {
+      if (!currentProposal) return;
+      pdfLoading.classList.remove('hidden');
+      pdfEmpty.classList.add('hidden');
+      pdfStatus.textContent = 'Rendering…';
+      refreshPdfBtn.disabled = true;
+      try {
+        const res = await fetch('/pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(currentProposal),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const blob = await res.blob();
+        if (currentPdfUrl) URL.revokeObjectURL(currentPdfUrl);
+        currentPdfUrl = URL.createObjectURL(blob);
+        pdfFrame.src = currentPdfUrl + '#view=FitH';
+        const t = new Date();
+        const hh = String(t.getHours()).padStart(2, '0');
+        const mm = String(t.getMinutes()).padStart(2, '0');
+        const ss = String(t.getSeconds()).padStart(2, '0');
+        pdfStatus.textContent = `Updated ${hh}:${mm}:${ss}`;
+      } catch (err) {
+        pdfStatus.textContent = 'Error';
+        alert('PDF preview failed: ' + err.message);
+      } finally {
+        pdfLoading.classList.add('hidden');
+        refreshPdfBtn.disabled = false;
+      }
+    }
+
+    refreshPdfBtn.addEventListener('click', refreshPdfPreview);
+    pdfEmptyRefresh.addEventListener('click', refreshPdfPreview);
+
+    function applyContentEditable(on) {
+      previewBody.querySelectorAll('[data-field]').forEach(el => {
+        if (on) el.setAttribute('contenteditable', 'true');
+        else el.removeAttribute('contenteditable');
+      });
+    }
+
+    function commitEdits() {
+      previewBody.querySelectorAll('[data-field]').forEach(el => {
+        const path = el.getAttribute('data-field');
+        const multiline = el.getAttribute('data-multiline') === 'true';
+        const raw = multiline ? el.innerText : el.textContent;
+        const value = multiline
+          ? raw.replace(/\n+/g, '\n\n').trim()
+          : raw.trim();
+        setPath(currentProposal, path, value);
+      });
+    }
+
+    function setPath(obj, path, value) {
+      const parts = path.split('.');
+      let cur = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const k = parts[i];
+        const key = /^\d+$/.test(k) ? parseInt(k, 10) : k;
+        if (cur[key] == null) return;
+        cur = cur[key];
+      }
+      const last = parts[parts.length - 1];
+      const lastKey = /^\d+$/.test(last) ? parseInt(last, 10) : last;
+      cur[lastKey] = value;
+    }
+
+    function removePath(obj, path) {
+      const parts = path.split('.');
+      let parent = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const k = parts[i];
+        parent = parent[/^\d+$/.test(k) ? parseInt(k, 10) : k];
+        if (parent == null) return;
+      }
+      const last = parts[parts.length - 1];
+      if (Array.isArray(parent) && /^\d+$/.test(last)) {
+        parent.splice(parseInt(last, 10), 1);
+      } else {
+        delete parent[last];
+      }
+    }
+
+    // Delegated click handler for all + / × buttons and the Add Module trigger
+    previewBody.addEventListener('click', (e) => {
+      const addTrigger = e.target.closest('#addModuleTrigger');
+      if (addTrigger) return openAddModulePanel();
+
+      const addBtn = e.target.closest('.add-item-btn');
+      if (addBtn) return handleAdd(addBtn.dataset.add, addBtn.dataset.moduleIdx);
+
+      const removeBtn = e.target.closest('.remove-item-btn');
+      if (removeBtn) return handleRemove(removeBtn.dataset.remove);
+
+      const addScreenBtn = e.target.closest('.add-screen-btn');
+      if (addScreenBtn) return handleAdd('screen', addScreenBtn.dataset.moduleIdx);
+    });
+
+    function handleAdd(type, moduleIdx) {
+      commitEdits();
+      const d = currentProposal;
+      if (type === 'feature') {
+        (d.additional_features = d.additional_features || []).push('New feature');
+      } else if (type === 'stack') {
+        (d.technology_stack = d.technology_stack || []).push({ layer: 'New layer', technology: '' });
+      } else if (type === 'timeline') {
+        (d.timeline = d.timeline || []).push({ phase: 'New phase', description: '', duration_days: '' });
+      } else if (type === 'recurring') {
+        d.recurring_costs = d.recurring_costs || { note: '', items: [], estimated_total: '' };
+        (d.recurring_costs.items = d.recurring_costs.items || []).push({ service: 'New service', monthly_cost: '' });
+      } else if (type === 'deliverable') {
+        (d.deliverables = d.deliverables || []).push('New deliverable');
+      } else if (type === 'tc') {
+        (d.terms_and_conditions = d.terms_and_conditions || []).push({ label: 'New clause', text: '' });
+      } else if (type === 'screen') {
+        const mi = parseInt(moduleIdx, 10);
+        const mod = d.scope_modules[mi];
+        const screens = mod.screens = mod.screens || [];
+        const code = `${mod.module_code}.${screens.length + 1}`;
+        screens.push({ code, name: 'New screen', description: '' });
+      }
+      renderPreview(d);
+      if (editing) applyContentEditable(true);
+    }
+
+    function handleRemove(path) {
+      if (!confirm('Remove this item?')) return;
+      commitEdits();
+      removePath(currentProposal, path);
+      renderPreview(currentProposal);
+      if (editing) applyContentEditable(true);
+    }
+
+    downloadBtn.addEventListener('click', async () => {
+      if (!currentProposal || editing) return;
+      if (!currentPdfUrl) {
+        downloadBtn.disabled = true;
+        downloadBtn.textContent = 'Preparing...';
+        try { await refreshPdfPreview(); }
+        finally { downloadBtn.disabled = false; downloadBtn.textContent = 'Download PDF'; }
+      }
+      if (!currentPdfUrl) return;
+      const a = document.createElement('a');
+      a.href = currentPdfUrl;
+      const clientName = (currentProposal._meta && currentProposal._meta.client_name) || 'client';
+      a.download = `Proposal_${clientName.replace(/\s+/g,'_')}.pdf`;
+      a.click();
+    });
+
+    backBtn.addEventListener('click', () => {
+      previewCard.classList.add('hidden');
+      document.getElementById('mainContainer').classList.remove('wide');
+      formCard.classList.remove('hidden');
+      form.reset();
+      loadFormDefaults();
+      industryOtherWrap.style.display = 'none';
+      currentProposal = null;
+      editing = false;
+      previewBody.classList.remove('editing');
+      editHint.classList.add('hidden');
+      addModulePanel.classList.add('hidden');
+      editBtn.textContent = 'Edit';
+      editBtn.classList.add('secondary');
+      if (currentPdfUrl) { URL.revokeObjectURL(currentPdfUrl); currentPdfUrl = null; }
+      pdfFrame.removeAttribute('src');
+      pdfEmpty.classList.remove('hidden');
+      pdfStatus.textContent = '';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // --- Add Module panel (AI / manual) ---
+
+    document.querySelectorAll('input[name="addMode"]').forEach(r => {
+      r.addEventListener('change', updateModeSections);
+    });
+    addRowBtn.addEventListener('click', () => addManualRow());
+    generateModuleBtn.addEventListener('click', handleGenerateModule);
+    cancelModuleBtn.addEventListener('click', closeAddModulePanel);
+    saveModuleBtn.addEventListener('click', handleSaveModule);
+    newModuleName.addEventListener('input', () => {
+      const mode = document.querySelector('input[name="addMode"]:checked').value;
+      if (mode === 'manual') refreshManualSaveState();
+      else if (pendingScreens.length) saveModuleBtn.disabled = !newModuleName.value.trim();
+    });
+
+    function openAddModulePanel() {
+      if (!editing) {
+        alert('Click Edit first to add a module.');
+        return;
+      }
+      commitEdits();
+      resetAddModulePanel();
+      addModulePanel.classList.remove('hidden');
+      newModuleName.focus();
+      addModulePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function closeAddModulePanel() {
+      addModulePanel.classList.add('hidden');
+      resetAddModulePanel();
+    }
+
+    function resetAddModulePanel() {
+      newModuleName.value = '';
+      aiPromptEl.value = '';
+      pendingScreens = [];
+      manualScreensList.innerHTML = '';
+      generatedScreensDiv.classList.add('hidden');
+      generatedScreensBody.innerHTML = '';
+      aiLoader.classList.add('hidden');
+      saveModuleBtn.disabled = true;
+      document.querySelector('input[name="addMode"][value="ai"]').checked = true;
+      updateModeSections();
+    }
+
+    function updateModeSections() {
+      const mode = document.querySelector('input[name="addMode"]:checked').value;
+      if (mode === 'ai') {
+        aiModeSection.classList.remove('hidden');
+        manualModeSection.classList.add('hidden');
+        pendingScreens = [];
+        generatedScreensDiv.classList.add('hidden');
+        saveModuleBtn.disabled = true;
+      } else {
+        aiModeSection.classList.add('hidden');
+        manualModeSection.classList.remove('hidden');
+        generatedScreensDiv.classList.add('hidden');
+        if (!manualScreensList.children.length) addManualRow();
+        refreshManualSaveState();
+      }
+    }
+
+    function addManualRow() {
+      const row = document.createElement('div');
+      row.className = 'manual-row';
+      row.innerHTML = `
+        <input type="text" class="manual-name" placeholder="Screen / feature name">
+        <input type="text" class="manual-desc" placeholder="One-line description">
+        <button type="button" class="icon-btn remove-row" title="Remove">×</button>
+      `;
+      row.querySelector('.remove-row').addEventListener('click', () => {
+        row.remove();
+        refreshManualSaveState();
+      });
+      row.querySelectorAll('input').forEach(inp =>
+        inp.addEventListener('input', refreshManualSaveState)
+      );
+      manualScreensList.appendChild(row);
+      refreshManualSaveState();
+    }
+
+    function refreshManualSaveState() {
+      const name = newModuleName.value.trim();
+      const rows = [...manualScreensList.querySelectorAll('.manual-row')];
+      const anyFilled = rows.some(r =>
+        r.querySelector('.manual-name').value.trim() &&
+        r.querySelector('.manual-desc').value.trim()
+      );
+      saveModuleBtn.disabled = !(name && anyFilled);
+    }
+
+    function nextModuleCode(modules) {
+      let maxNum = 0;
+      let prefix = '2';
+      for (const m of modules || []) {
+        const match = /^(\d+)\.(\d+)$/.exec(m.module_code || '');
+        if (match) {
+          prefix = match[1];
+          if (parseInt(match[2], 10) > maxNum) maxNum = parseInt(match[2], 10);
+        }
+      }
+      return `${prefix}.${maxNum + 1}`;
+    }
+
+    async function handleGenerateModule() {
+      if (!currentProposal) return;
+      const name = newModuleName.value.trim();
+      if (!name) { alert('Enter a module name first.'); newModuleName.focus(); return; }
+      const code = nextModuleCode(currentProposal.scope_modules);
+      generateModuleBtn.disabled = true;
+      aiLoader.classList.remove('hidden');
+      generatedScreensDiv.classList.add('hidden');
+      try {
+        const res = await fetch('/generate-module', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_title: currentProposal.project_title || '',
+            industry: (currentProposal._meta && currentProposal._meta.industry) || '',
+            project_description: (currentProposal._meta && currentProposal._meta.project_description) || '',
+            module_name: name,
+            user_prompt: aiPromptEl.value.trim(),
+            next_code: code,
+            existing_modules: currentProposal.scope_modules || [],
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const module = await res.json();
+        pendingScreens = (module.screens || []).map((s, i) => ({
+          code: s.code || `${code}.${i + 1}`,
+          name: s.name || '',
+          description: s.description || '',
+        }));
+        renderGeneratedScreens(code);
+        saveModuleBtn.disabled = pendingScreens.length === 0 || !name;
+      } catch (err) {
+        alert('Module generation failed: ' + err.message);
+      } finally {
+        generateModuleBtn.disabled = false;
+        aiLoader.classList.add('hidden');
+      }
+    }
+
+    function renderGeneratedScreens(moduleCode) {
+      generatedScreensBody.innerHTML = pendingScreens.map((s, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${esc(s.code)}</td>
+          <td contenteditable="true" data-idx="${i}" data-key="name">${esc(s.name)}</td>
+          <td contenteditable="true" data-idx="${i}" data-key="description">${esc(s.description)}</td>
+        </tr>
+      `).join('');
+      generatedScreensBody.querySelectorAll('[contenteditable]').forEach(el => {
+        el.addEventListener('input', () => {
+          const idx = parseInt(el.getAttribute('data-idx'), 10);
+          const key = el.getAttribute('data-key');
+          pendingScreens[idx][key] = el.textContent;
+        });
+      });
+      generatedScreensDiv.classList.remove('hidden');
+    }
+
+    function collectManualScreens(code) {
+      return [...manualScreensList.querySelectorAll('.manual-row')]
+        .map(r => ({
+          name: r.querySelector('.manual-name').value.trim(),
+          description: r.querySelector('.manual-desc').value.trim(),
+        }))
+        .filter(s => s.name || s.description)
+        .map((s, i) => ({ code: `${code}.${i + 1}`, name: s.name, description: s.description }));
+    }
+
+    function handleSaveModule() {
+      if (!currentProposal) return;
+      const name = newModuleName.value.trim();
+      if (!name) return;
+      const mode = document.querySelector('input[name="addMode"]:checked').value;
+      const code = nextModuleCode(currentProposal.scope_modules);
+      const screens = mode === 'ai'
+        ? pendingScreens.filter(s => s.name || s.description)
+        : collectManualScreens(code);
+      if (!screens.length) { alert('Add at least one screen before saving.'); return; }
+      const module = { module_code: code, module_name: name, screens };
+      currentProposal.scope_modules = currentProposal.scope_modules || [];
+      currentProposal.scope_modules.push(module);
+      closeAddModulePanel();
+      renderPreview(currentProposal);
+      if (editing) applyContentEditable(true);
+    }
+
+    // --- Rendering helpers ---
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function df(path, multiline) {
+      return `data-field="${path}"${multiline ? ' data-multiline="true"' : ''}`;
+    }
+
+    function rm(path) {
+      return `<button class="remove-item-btn edit-only" data-remove="${path}" title="Remove">×</button>`;
+    }
+
+    function addBtn(type, label, extra) {
+      const attrs = extra ? ` ${extra}` : '';
+      return `<button class="add-item-btn edit-only" data-add="${type}"${attrs}>+ ${label}</button>`;
+    }
+
+    function renderPreview(d) {
+      previewTitle.textContent = d.project_title || 'Proposal Preview';
+      const meta = d._meta || {};
+
+      const introHtml = `<div class="intro-block" ${df('introduction', true)}>${
+        String(d.introduction || '').split(/\n\n+/)
+          .map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('')
+      }</div>`;
+
+      const scopeHtml = (d.scope_modules || []).map((m, mi) => `
+        <div class="scope-module">
+          <h4>
+            <span>${esc(m.module_code || '')}</span>
+            <span ${df(`scope_modules.${mi}.module_name`)}>${esc(m.module_name)}</span>
+            ${rm(`scope_modules.${mi}`)}
+          </h4>
+          <table>
+            <thead><tr><th>#</th><th>Code</th><th>Screen</th><th>Description</th><th class="action-col edit-only"></th></tr></thead>
+            <tbody>
+              ${(m.screens || []).map((s, i) => `
+                <tr>
+                  <td>${i+1}</td>
+                  <td>${esc(s.code)}</td>
+                  <td ${df(`scope_modules.${mi}.screens.${i}.name`)}>${esc(s.name)}</td>
+                  <td ${df(`scope_modules.${mi}.screens.${i}.description`)}>${esc(s.description)}</td>
+                  <td class="action-col edit-only">${rm(`scope_modules.${mi}.screens.${i}`)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+          <button class="add-screen-btn edit-only" data-module-idx="${mi}">+ Add screen</button>
+        </div>
+      `).join('');
+
+      const addModuleBar = `<div class="add-module-bar edit-only"><button type="button" id="addModuleTrigger" class="add-module-trigger">+ Add Module (with AI or manual)</button></div>`;
+
+      const addFeatures = `<h4>Additional Features</h4>
+        <ul>
+          ${(d.additional_features || []).map((f, i) =>
+            `<li><span ${df(`additional_features.${i}`)}>${esc(f)}</span> ${rm(`additional_features.${i}`)}</li>`
+          ).join('')}
+        </ul>
+        ${addBtn('feature', 'Add feature')}`;
+
+      const stackHtml = `
+        <table>
+          <thead><tr><th>Layer</th><th>Technology</th><th class="action-col edit-only"></th></tr></thead>
+          <tbody>
+            ${(d.technology_stack || []).map((t, i) => `
+              <tr>
+                <td ${df(`technology_stack.${i}.layer`)}>${esc(t.layer)}</td>
+                <td ${df(`technology_stack.${i}.technology`)}>${esc(t.technology)}</td>
+                <td class="action-col edit-only">${rm(`technology_stack.${i}`)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        ${addBtn('stack', 'Add layer')}`;
+
+      const timelineHtml = `
+        <table>
+          <thead><tr><th>Phase</th><th>Description</th><th>Duration</th><th class="action-col edit-only"></th></tr></thead>
+          <tbody>
+            ${(d.timeline || []).map((p, i) => `
+              <tr>
+                <td ${df(`timeline.${i}.phase`)}>${esc(p.phase)}</td>
+                <td ${df(`timeline.${i}.description`)}>${esc(p.description)}</td>
+                <td><span ${df(`timeline.${i}.duration_days`)}>${esc(p.duration_days)}</span> Days</td>
+                <td class="action-col edit-only">${rm(`timeline.${i}`)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        ${addBtn('timeline', 'Add phase')}
+        <p>
+          <strong>Total Duration: <span ${df('total_duration_label')}>${esc(d.total_duration_label)}</span></strong>
+          <em>(<span ${df('total_duration_note')}>${esc(d.total_duration_note)}</span>)</em>
+        </p>`;
+
+      const cost = d.project_cost || {};
+      const costHtml = `
+        <div class="cost-box">
+          <div class="cost-big" ${df('project_cost.amount_display')}>${esc(cost.amount_display)}</div>
+          <div class="cost-words">(<span ${df('project_cost.amount_words')}>${esc(cost.amount_words)}</span>)</div>
+        </div>
+        <p ${df('project_cost.description')}>${esc(cost.description)}</p>`;
+
+      const rec = d.recurring_costs || {};
+      const recurringHtml = `
+        <p ${df('recurring_costs.note')}>${esc(rec.note)}</p>
+        <table>
+          <thead><tr><th>Service</th><th>Est. Monthly Cost</th><th class="action-col edit-only"></th></tr></thead>
+          <tbody>
+            ${(rec.items || []).map((r, i) => `
+              <tr>
+                <td ${df(`recurring_costs.items.${i}.service`)}>${esc(r.service)}</td>
+                <td ${df(`recurring_costs.items.${i}.monthly_cost`)}>${esc(r.monthly_cost)}</td>
+                <td class="action-col edit-only">${rm(`recurring_costs.items.${i}`)}</td>
+              </tr>`).join('')}
+            <tr class="total-row">
+              <td><strong>Estimated Total</strong></td>
+              <td><strong ${df('recurring_costs.estimated_total')}>${esc(rec.estimated_total)}</strong></td>
+              <td class="action-col edit-only"></td>
+            </tr>
+          </tbody>
+        </table>
+        ${addBtn('recurring', 'Add service')}`;
+
+      const deliverablesHtml = `<ol>
+          ${(d.deliverables || []).map((it, i) =>
+            `<li><span ${df(`deliverables.${i}`)}>${esc(it)}</span> ${rm(`deliverables.${i}`)}</li>`
+          ).join('')}
+        </ol>
+        ${addBtn('deliverable', 'Add deliverable')}`;
+
+      const tcHtml = `<div class="tc-list">
+          ${(d.terms_and_conditions || []).map((t, i) =>
+            `<p><strong ${df(`terms_and_conditions.${i}.label`)}>${esc(t.label)}</strong>:
+              <span ${df(`terms_and_conditions.${i}.text`)}>${esc(t.text)}</span>
+              ${rm(`terms_and_conditions.${i}`)}</p>`
+          ).join('')}
+        </div>
+        ${addBtn('tc', 'Add clause')}`;
+
+      previewBody.innerHTML = `
+        <div class="meta-block">
+          <div><span class="meta-label">Project title</span><span ${df('project_title')}>${esc(d.project_title)}</span></div>
+          <div><span class="meta-label">Prepared by</span><span ${df('_meta.prepared_by')}>${esc(meta.prepared_by)}</span></div>
+          <div><span class="meta-label">Email</span><span ${df('_meta.company_email')}>${esc(meta.company_email)}</span></div>
+          <div><span class="meta-label">Date</span><span ${df('_meta.date')}>${esc(meta.date)}</span></div>
+          <div><span class="meta-label">Prepared for</span><span>
+            <span ${df('_meta.client_name')}>${esc(meta.client_name)}</span>
+            (<span ${df('_meta.industry')}>${esc(meta.industry)}</span>)
+          </span></div>
+        </div>
+
+        <h3>1. Introduction</h3>${introHtml}
+
+        <h3>2. Executive Summary</h3>
+        <p ${df('executive_summary')}>${esc(d.executive_summary)}</p>
+
+        <h3>3. Project Scope — <span ${df('project_title_short')}>${esc(d.project_title_short || d.project_title)}</span></h3>
+        ${scopeHtml}
+        ${addFeatures}
+        ${addModuleBar}
+
+        <h3>4. Technology Stack</h3>${stackHtml}
+
+        <h3>5. Project Timeline</h3>${timelineHtml}
+
+        <h3>6. Project Cost</h3>${costHtml}
+
+        <h3>7. Recurring Costs (Borne by Client)</h3>${recurringHtml}
+
+        <h3>8. Deliverables</h3>${deliverablesHtml}
+
+        <h3>9. Terms &amp; Conditions</h3>${tcHtml}
+
+        <div class="closing-banner" ${df('closing_message')}>${esc(d.closing_message || 'Thank you for your trust.')}</div>
+        <div class="signature">
+          <span ${df('_meta.prepared_by')}>${esc(meta.prepared_by)}</span>
+          &nbsp;|&nbsp;
+          <span ${df('_meta.company_email')}>${esc(meta.company_email)}</span>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
