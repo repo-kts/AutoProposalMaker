@@ -81,7 +81,16 @@
       </div>
       <div class="edit-hint hidden" id="editHint">Editing — click any text to change it, use <strong>+ Add</strong> / <strong>×</strong> buttons to add or remove items, then press <strong>Save Changes</strong> (PDF on the right auto-updates).</div>
 
-      <div class="split-view">
+      <div class="split-view" id="splitView">
+        <div class="tab-bar" role="tablist">
+          <button type="button" class="tab-btn active" id="tabEditor" role="tab" aria-selected="true">
+            <span class="tab-icon" aria-hidden="true">📝</span> Editor
+          </button>
+          <button type="button" class="tab-btn" id="tabPdf" role="tab" aria-selected="false">
+            <span class="tab-icon" aria-hidden="true">📄</span> Live PDF
+          </button>
+        </div>
+
         <div class="pane pane-left">
           <div class="pane-label">Editor</div>
           <div id="previewBody" class="preview-body"></div>
@@ -324,8 +333,32 @@
       }
     }
 
-    refreshPdfBtn.addEventListener('click', refreshPdfPreview);
-    pdfEmptyRefresh.addEventListener('click', refreshPdfPreview);
+    // Mobile tab switching (Editor / Live PDF)
+    const tabEditorBtn = document.getElementById('tabEditor');
+    const tabPdfBtn = document.getElementById('tabPdf');
+    const splitView = document.getElementById('splitView');
+
+    function setMobileTab(tab) {
+      if (!splitView) return;
+      splitView.classList.remove('tab-editor', 'tab-pdf');
+      splitView.classList.add('tab-' + tab);
+      const isEditor = tab === 'editor';
+      tabEditorBtn.classList.toggle('active', isEditor);
+      tabPdfBtn.classList.toggle('active', !isEditor);
+      tabEditorBtn.setAttribute('aria-selected', isEditor ? 'true' : 'false');
+      tabPdfBtn.setAttribute('aria-selected', isEditor ? 'false' : 'true');
+    }
+
+    tabEditorBtn.addEventListener('click', () => setMobileTab('editor'));
+    tabPdfBtn.addEventListener('click', () => setMobileTab('pdf'));
+    setMobileTab('editor');
+
+    async function manualPdfRefresh() {
+      await refreshPdfPreview();
+      if (window.innerWidth <= 1180) setMobileTab('pdf');
+    }
+    refreshPdfBtn.addEventListener('click', manualPdfRefresh);
+    pdfEmptyRefresh.addEventListener('click', manualPdfRefresh);
 
     function applyContentEditable(on) {
       previewBody.querySelectorAll('[data-field]').forEach(el => {
