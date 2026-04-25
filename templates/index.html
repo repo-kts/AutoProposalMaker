@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AutoProposalMaker · {{ company_name }}</title>
-  <link rel="stylesheet" href="/static/style.css?v=3">
+  <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -158,6 +158,7 @@
           </div>
           <div class="pdf-wrap">
             <iframe id="pdfFrame" class="pdf-frame" title="PDF Preview"></iframe>
+            <div id="pdfCanvasContainer" class="pdf-canvas-container hidden"></div>
             <div class="pdf-loading hidden" id="pdfLoading">
               <div class="spinner small"></div>
               <span>Rendering PDF...</span>
@@ -192,6 +193,7 @@
     const editBtn = document.getElementById('editBtn');
     const editHint = document.getElementById('editHint');
     const pdfFrame = document.getElementById('pdfFrame');
+    const pdfCanvasContainer = document.getElementById('pdfCanvasContainer');
     const pdfLoading = document.getElementById('pdfLoading');
     const pdfStatus = document.getElementById('pdfStatus');
     const pdfEmpty = document.getElementById('pdfEmpty');
@@ -314,6 +316,51 @@
       refreshPdfPreview();
     }
 
+    const PDFJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174';
+    let pdfJsLoading = null;
+
+    function loadPdfJs() {
+      if (window.pdfjsLib) return Promise.resolve();
+      if (pdfJsLoading) return pdfJsLoading;
+      pdfJsLoading = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = `${PDFJS_CDN}/pdf.min.js`;
+        s.onload = () => {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN}/pdf.worker.min.js`;
+          resolve();
+        };
+        s.onerror = () => reject(new Error('Failed to load PDF.js'));
+        document.head.appendChild(s);
+      });
+      return pdfJsLoading;
+    }
+
+    function isMobileViewport() {
+      return window.innerWidth <= 1180;
+    }
+
+    async function renderPdfToCanvas(blob) {
+      await loadPdfJs();
+      const buf = await blob.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      pdfCanvasContainer.innerHTML = '';
+      const containerWidth = pdfCanvasContainer.clientWidth || 360;
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const baseViewport = page.getViewport({ scale: 1 });
+        const scale = Math.min(2, Math.max(1, (containerWidth - 16) / baseViewport.width));
+        const viewport = page.getViewport({ scale: scale * (window.devicePixelRatio || 1) });
+        const canvas = document.createElement('canvas');
+        canvas.className = 'pdf-page-canvas';
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.width = ((viewport.width / (window.devicePixelRatio || 1))) + 'px';
+        canvas.style.height = ((viewport.height / (window.devicePixelRatio || 1))) + 'px';
+        pdfCanvasContainer.appendChild(canvas);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      }
+    }
+
     async function refreshPdfPreview() {
       if (!currentProposal) return;
       pdfLoading.classList.remove('hidden');
@@ -330,7 +377,17 @@
         const blob = await res.blob();
         if (currentPdfUrl) URL.revokeObjectURL(currentPdfUrl);
         currentPdfUrl = URL.createObjectURL(blob);
-        pdfFrame.src = currentPdfUrl + '#view=FitH';
+
+        if (isMobileViewport()) {
+          pdfFrame.classList.add('hidden');
+          pdfCanvasContainer.classList.remove('hidden');
+          await renderPdfToCanvas(blob);
+        } else {
+          pdfCanvasContainer.classList.add('hidden');
+          pdfFrame.classList.remove('hidden');
+          pdfFrame.src = currentPdfUrl + '#view=FitH';
+        }
+
         const t = new Date();
         const hh = String(t.getHours()).padStart(2, '0');
         const mm = String(t.getMinutes()).padStart(2, '0');
@@ -503,6 +560,9 @@
       editBtn.classList.add('secondary');
       if (currentPdfUrl) { URL.revokeObjectURL(currentPdfUrl); currentPdfUrl = null; }
       pdfFrame.removeAttribute('src');
+      pdfFrame.classList.remove('hidden');
+      pdfCanvasContainer.innerHTML = '';
+      pdfCanvasContainer.classList.add('hidden');
       pdfEmpty.classList.remove('hidden');
       pdfStatus.textContent = '';
       window.scrollTo({ top: 0, behavior: 'smooth' });
