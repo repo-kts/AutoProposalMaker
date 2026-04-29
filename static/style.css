@@ -186,6 +186,17 @@ body {
   font-size: 13.5px;
   margin: 12px 0 4px;
 }
+.auth-foot {
+  margin-top: 18px;
+  font-size: 13.5px;
+  text-align: center;
+}
+.auth-foot .auth-link {
+  color: var(--teal);
+  font-weight: 600;
+  text-decoration: none;
+}
+.auth-foot .auth-link:hover { text-decoration: underline; color: var(--teal-dark); }
 .container { max-width: 960px; margin: 36px auto; padding: 0 20px; }
 .container.wide { max-width: 1480px; }
 

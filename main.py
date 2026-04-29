@@ -24,6 +24,7 @@ from auth import (
     require_user,
     verify_password,
 )
+from sqlalchemy.exc import IntegrityError
 from db import Proposal, User, get_db, init_db
 from prompts import SYSTEM_PROMPT, build_module_prompt, build_proposal_prompt
 
@@ -175,6 +176,67 @@ async def login_submit(
 async def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=302)
+
+
+@app.get("/signup", response_class=HTMLResponse)
+async def signup_page(request: Request, db: Session = Depends(get_db)):
+    if get_session_user(request, db):
+        return RedirectResponse("/", status_code=302)
+    return templates.TemplateResponse(
+        request, "signup.html",
+        {
+            "company_name": config.COMPANY_NAME,
+            "company_email": config.COMPANY_EMAIL,
+            "error": None,
+            "email": "",
+        },
+    )
+
+
+@app.post("/signup", response_class=HTMLResponse)
+async def signup_submit(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    confirm: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    email_norm = email.strip().lower()
+
+    def render_error(msg: str, code: int = 400):
+        return templates.TemplateResponse(
+            request, "signup.html",
+            {
+                "company_name": config.COMPANY_NAME,
+                "company_email": config.COMPANY_EMAIL,
+                "error": msg,
+                "email": email_norm,
+            },
+            status_code=code,
+        )
+
+    if "@" not in email_norm or "." not in email_norm.split("@")[-1]:
+        return render_error("That doesn't look like a valid email address.")
+    if len(password) < 8:
+        return render_error("Password must be at least 8 characters.")
+    if password != confirm:
+        return render_error("Passwords don't match.")
+
+    existing = db.query(User).filter(User.email == email_norm).first()
+    if existing:
+        return render_error("An account with that email already exists. Try signing in.")
+
+    user = User(email=email_norm, password_hash=hash_password(password))
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return render_error("An account with that email already exists. Try signing in.")
+    db.refresh(user)
+
+    request.session["user_id"] = user.id
+    return RedirectResponse("/", status_code=302)
 
 
 # --- App pages (require auth) ---
