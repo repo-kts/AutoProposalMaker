@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>History · {{ company_name }}</title>
+  <link rel="stylesheet" href="/static/style.css?v=5">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="https://kalopetech.com" target="_blank" rel="noopener">{{ company_name }}</a>
+    <nav class="topbar-nav">
+      <a class="nav-link" href="/">+ New Proposal</a>
+      <a class="nav-link active" href="/history">History</a>
+      <span class="nav-user">{{ user.email }}</span>
+      <form method="post" action="/logout" class="nav-logout">
+        <button type="submit" class="link-btn">Logout</button>
+      </form>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="form-card">
+      <h1>Saved Proposals</h1>
+      <p class="muted">{{ proposals|length }} proposal{{ '' if proposals|length == 1 else 's' }}.</p>
+
+      {% if not proposals %}
+      <div class="history-empty">
+        <p>You haven't saved any proposals yet.</p>
+        <a class="cta-link" href="/">Create your first proposal →</a>
+      </div>
+      {% else %}
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Client</th>
+            <th>Status</th>
+            <th>Updated</th>
+            <th class="action-col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in proposals %}
+          <tr>
+            <td><a class="proposal-link" href="/proposal/{{ p.id }}">{{ p.title or '(untitled)' }}</a></td>
+            <td>{{ p.client_name }}</td>
+            <td><span class="status-badge status-{{ p.status }}">{{ p.status }}</span></td>
+            <td class="muted">{{ p.updated_at.strftime('%b %d, %Y · %H:%M') }}</td>
+            <td class="action-col">
+              <form method="post" action="/proposal/{{ p.id }}/delete" onsubmit="return confirm('Delete this proposal?');" class="inline-form">
+                <button type="submit" class="icon-btn" title="Delete">×</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>

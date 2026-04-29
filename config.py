@@ -7,6 +7,12 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./local.db")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-only-change-me-in-production-please")
+
 COMPANY_NAME = "Kalope Tech"
 COMPANY_EMAIL = "kalopetechservices@gmail.com"
 DEFAULT_PREPARED_BY = COMPANY_NAME

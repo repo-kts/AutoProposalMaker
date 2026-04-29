@@ -2,19 +2,29 @@ import json
 import os
 import re
 import shutil
+from contextlib import asynccontextmanager
 from io import BytesIO
 
-from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from openai import OpenAI
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
 from xhtml2pdf import default as xhtml2pdf_default
 from xhtml2pdf import pisa
 
 import config
+from auth import (
+    get_session_user,
+    hash_password,
+    require_user,
+    verify_password,
+)
+from db import Proposal, User, get_db, init_db
 from prompts import SYSTEM_PROMPT, build_module_prompt, build_proposal_prompt
 
 
@@ -91,15 +101,89 @@ def _strip_leading_number(s):
     return _LEADING_NUM_RE.sub("", s)
 
 
-app = FastAPI(title="AutoProposalMaker")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="AutoProposalMaker", lifespan=lifespan)
+app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET, max_age=60 * 60 * 24 * 14)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 openai_client = OpenAI(api_key=config.OPENAI_API_KEY)
 
 
+def _redirect_to_login() -> RedirectResponse:
+    return RedirectResponse(url="/login", status_code=302)
+
+
+def _proposal_summary(p: Proposal) -> dict:
+    return {
+        "id": p.id,
+        "title": p.title,
+        "client_name": p.client_name,
+        "status": p.status,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+    }
+
+
+# --- Auth pages ---
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, db: Session = Depends(get_db)):
+    if get_session_user(request, db):
+        return RedirectResponse("/", status_code=302)
+    return templates.TemplateResponse(
+        request, "login.html",
+        {
+            "company_name": config.COMPANY_NAME,
+            "company_email": config.COMPANY_EMAIL,
+            "error": None,
+            "email": "",
+        },
+    )
+
+
+@app.post("/login", response_class=HTMLResponse)
+async def login_submit(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    email_norm = email.strip().lower()
+    user = db.query(User).filter(User.email == email_norm).first()
+    if not user or not verify_password(password, user.password_hash):
+        return templates.TemplateResponse(
+            request, "login.html",
+            {
+                "company_name": config.COMPANY_NAME,
+                "company_email": config.COMPANY_EMAIL,
+                "error": "Invalid email or password.",
+                "email": email_norm,
+            },
+            status_code=401,
+        )
+    request.session["user_id"] = user.id
+    return RedirectResponse("/", status_code=302)
+
+
+@app.post("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse("/login", status_code=302)
+
+
+# --- App pages (require auth) ---
+
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, db: Session = Depends(get_db)):
+    user = get_session_user(request, db)
+    if not user:
+        return _redirect_to_login()
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -108,8 +192,124 @@ async def index(request: Request):
             "company_email": config.COMPANY_EMAIL,
             "industries": config.INDUSTRIES,
             "currencies": config.CURRENCIES,
+            "user": user,
+            "preloaded": None,
         },
     )
+
+
+@app.get("/history", response_class=HTMLResponse)
+async def history_page(request: Request, db: Session = Depends(get_db)):
+    user = get_session_user(request, db)
+    if not user:
+        return _redirect_to_login()
+    proposals = (
+        db.query(Proposal)
+        .filter(Proposal.user_id == user.id)
+        .order_by(Proposal.updated_at.desc())
+        .all()
+    )
+    return templates.TemplateResponse(
+        request, "history.html",
+        {
+            "company_name": config.COMPANY_NAME,
+            "company_email": config.COMPANY_EMAIL,
+            "user": user,
+            "proposals": proposals,
+        },
+    )
+
+
+@app.get("/proposal/{proposal_id}", response_class=HTMLResponse)
+async def open_proposal(proposal_id: int, request: Request, db: Session = Depends(get_db)):
+    user = get_session_user(request, db)
+    if not user:
+        return _redirect_to_login()
+    p = (
+        db.query(Proposal)
+        .filter(Proposal.id == proposal_id, Proposal.user_id == user.id)
+        .first()
+    )
+    if not p:
+        return RedirectResponse("/history", status_code=302)
+    preloaded = {
+        "id": p.id,
+        "status": p.status,
+        "data": p.data,
+    }
+    return templates.TemplateResponse(
+        request, "index.html",
+        {
+            "company_name": config.COMPANY_NAME,
+            "company_email": config.COMPANY_EMAIL,
+            "industries": config.INDUSTRIES,
+            "currencies": config.CURRENCIES,
+            "user": user,
+            "preloaded": json.dumps(preloaded),
+        },
+    )
+
+
+@app.post("/proposal/{proposal_id}/delete")
+async def delete_proposal(proposal_id: int, request: Request, db: Session = Depends(get_db)):
+    user = get_session_user(request, db)
+    if not user:
+        return _redirect_to_login()
+    p = (
+        db.query(Proposal)
+        .filter(Proposal.id == proposal_id, Proposal.user_id == user.id)
+        .first()
+    )
+    if p:
+        db.delete(p)
+        db.commit()
+    return RedirectResponse("/history", status_code=302)
+
+
+# --- Save / update proposal (JSON API) ---
+
+@app.post("/save")
+async def save_proposal(
+    request: Request,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    body = await request.json()
+    proposal_data = body.get("data") or {}
+    status_value = (body.get("status") or "draft").lower()
+    if status_value not in {"draft", "final"}:
+        status_value = "draft"
+    proposal_id = body.get("id")
+
+    meta = proposal_data.get("_meta") or {}
+    title = (proposal_data.get("project_title") or "(untitled)").strip()[:500]
+    client_name = (meta.get("client_name") or "").strip()[:255]
+
+    if proposal_id:
+        p = (
+            db.query(Proposal)
+            .filter(Proposal.id == int(proposal_id), Proposal.user_id == user.id)
+            .first()
+        )
+        if not p:
+            raise HTTPException(status_code=404, detail="Proposal not found")
+        p.title = title
+        p.client_name = client_name
+        p.status = status_value
+        p.data = proposal_data
+    else:
+        p = Proposal(
+            user_id=user.id,
+            title=title,
+            client_name=client_name,
+            status=status_value,
+            data=proposal_data,
+        )
+        db.add(p)
+
+    db.commit()
+    db.refresh(p)
+    return _proposal_summary(p)
 
 
 @app.post("/generate")
@@ -122,6 +322,7 @@ async def generate(
     budget: str = Form(...),
     currency: str = Form(...),
     prepared_by: str = Form(""),
+    user: User = Depends(require_user),
 ):
     final_industry = (
         industry_other.strip()
@@ -174,7 +375,7 @@ async def generate(
 
 
 @app.post("/generate-module")
-async def generate_module(request: Request):
+async def generate_module(request: Request, user: User = Depends(require_user)):
     data = await request.json()
     module_name = (data.get("module_name") or "").strip()
     if not module_name:
@@ -208,7 +409,7 @@ async def generate_module(request: Request):
 
 
 @app.post("/pdf")
-async def pdf(request: Request):
+async def pdf(request: Request, user: User = Depends(require_user)):
     data = await request.json()
     html = templates.get_template("proposal.html").render(
         p=data, meta=data.get("_meta", {}), font_family=FONT_FAMILY

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in · {{ company_name }}</title>
+  <link rel="stylesheet" href="/static/style.css?v=5">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="https://kalopetech.com" target="_blank" rel="noopener">{{ company_name }}</a>
+    <a class="brand-sub" href="mailto:{{ company_email }}">{{ company_email }}</a>
+  </header>
+
+  <main class="container auth-container">
+    <section class="form-card auth-card">
+      <h1>Sign in</h1>
+      <p class="muted">Enter your credentials to continue.</p>
+
+      {% if error %}
+      <div class="auth-error">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/login">
+        <label>Email
+          <input type="email" name="email" required autofocus value="{{ email or '' }}">
+        </label>
+        <label>Password
+          <input type="password" name="password" required>
+        </label>
+        <button type="submit">Sign in</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

@@ -4,12 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AutoProposalMaker · {{ company_name }}</title>
-  <link rel="stylesheet" href="/static/style.css?v=4">
+  <link rel="stylesheet" href="/static/style.css?v=5">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="https://kalopetech.com" target="_blank" rel="noopener">{{ company_name }}</a>
-    <a class="brand-sub" href="mailto:{{ company_email }}">{{ company_email }}</a>
+    <nav class="topbar-nav">
+      <a class="nav-link active" href="/">+ New Proposal</a>
+      <a class="nav-link" href="/history">History</a>
+      {% if user %}
+      <span class="nav-user" title="{{ user.email }}">{{ user.email }}</span>
+      <form method="post" action="/logout" class="nav-logout">
+        <button type="submit" class="link-btn">Logout</button>
+      </form>
+      {% endif %}
+    </nav>
   </header>
 
   <main class="container" id="mainContainer">
@@ -81,6 +90,14 @@
             <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 5.64 5.64L1 10"/></svg>
             <span>Refresh PDF</span>
           </button>
+          <button id="saveDraftBtn" class="secondary">
+            <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span>Save Draft</span>
+          </button>
+          <button id="saveFinalBtn" class="secondary">
+            <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Save Final</span>
+          </button>
           <button id="downloadBtn">
             <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span>Download PDF</span>
@@ -90,6 +107,7 @@
             <span>New Proposal</span>
           </button>
         </div>
+        <div class="save-status" id="saveStatus"></div>
       </div>
       <div class="edit-hint hidden" id="editHint">Editing — click any text to change it, use <strong>+ Add</strong> / <strong>×</strong> buttons to add or remove items, then press <strong>Save Changes</strong> (PDF on the right auto-updates).</div>
 
@@ -214,9 +232,13 @@
     const saveModuleBtn = document.getElementById('saveModuleBtn');
 
     let currentProposal = null;
+    let currentProposalId = null;
+    let currentStatus = 'draft';
     let editing = false;
     let pendingScreens = [];
     let currentPdfUrl = null;
+
+    const PRELOADED = {{ preloaded | safe if preloaded else 'null' }};
 
     // --- Persistent form defaults (prepared_by + currency) ---
     const STORAGE_KEY = 'autoproposal.formDefaults.v1';
@@ -429,6 +451,81 @@
     refreshPdfBtn.addEventListener('click', manualPdfRefresh);
     pdfEmptyRefresh.addEventListener('click', manualPdfRefresh);
 
+    // Save Draft / Save Final
+    const saveDraftBtn = document.getElementById('saveDraftBtn');
+    const saveFinalBtn = document.getElementById('saveFinalBtn');
+    const saveStatusEl = document.getElementById('saveStatus');
+
+    function flashSaveStatus(msg, ok = true) {
+      if (!saveStatusEl) return;
+      saveStatusEl.textContent = msg;
+      saveStatusEl.className = 'save-status ' + (ok ? 'ok' : 'err');
+      clearTimeout(flashSaveStatus._t);
+      flashSaveStatus._t = setTimeout(() => {
+        saveStatusEl.textContent = '';
+        saveStatusEl.className = 'save-status';
+      }, 3000);
+    }
+
+    async function saveCurrentProposal(status) {
+      if (!currentProposal) return;
+      if (editing) commitEdits();
+      const btn = status === 'final' ? saveFinalBtn : saveDraftBtn;
+      const originalText = btn.querySelector('span').textContent;
+      btn.disabled = true;
+      btn.querySelector('span').textContent = 'Saving...';
+      try {
+        const res = await fetch('/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: currentProposalId,
+            status: status,
+            data: currentProposal,
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const saved = await res.json();
+        currentProposalId = saved.id;
+        currentStatus = saved.status;
+        updateStatusBadge();
+        flashSaveStatus(status === 'final' ? 'Saved as Final ✓' : 'Saved as Draft ✓', true);
+      } catch (err) {
+        flashSaveStatus('Save failed: ' + err.message, false);
+      } finally {
+        btn.disabled = false;
+        btn.querySelector('span').textContent = originalText;
+      }
+    }
+
+    function updateStatusBadge() {
+      const titleEl = document.getElementById('previewTitle');
+      let badge = titleEl.querySelector('.status-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'status-badge';
+        titleEl.appendChild(badge);
+      }
+      badge.className = 'status-badge status-' + currentStatus;
+      badge.textContent = currentStatus;
+    }
+
+    saveDraftBtn.addEventListener('click', () => saveCurrentProposal('draft'));
+    saveFinalBtn.addEventListener('click', () => saveCurrentProposal('final'));
+
+    // Preloaded proposal (opened from /history)
+    if (PRELOADED && PRELOADED.data) {
+      currentProposal = PRELOADED.data;
+      currentProposalId = PRELOADED.id;
+      currentStatus = PRELOADED.status || 'draft';
+      formCard.classList.add('hidden');
+      previewCard.classList.remove('hidden');
+      document.getElementById('mainContainer').classList.add('wide');
+      renderPreview(currentProposal);
+      updateStatusBadge();
+      refreshPdfPreview();
+    }
+
     function applyContentEditable(on) {
       previewBody.querySelectorAll('[data-field]').forEach(el => {
         if (on) el.setAttribute('contenteditable', 'true');
@@ -552,6 +649,8 @@
       loadFormDefaults();
       industryOtherWrap.style.display = 'none';
       currentProposal = null;
+      currentProposalId = null;
+      currentStatus = 'draft';
       editing = false;
       previewBody.classList.remove('editing');
       editHint.classList.add('hidden');
